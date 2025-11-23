@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VOLT | رويال شات</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: #020617; /* Slate 950 */
+            color: #e2e8f0;
+            overflow: hidden; /* منع التمرير الكلي للصفحة */
+        }
+        
+        /* تخصيص شريط التمرير */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.5);
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(71, 85, 105, 0.5);
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(234, 179, 8, 0.5); /* Yellow-500 */
+        }
+
+        /* تأثيرات الزجاج */
+        .glass {
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(30, 41, 59, 0.5);
+        }
+
+        /* حركات */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.4s ease-out forwards;
+        }
+        
+        .hidden-screen {
+            display: none !important;
+        }
+
+        /* خلفية الدردشة */
+        .chat-bg {
+            background-image: url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png");
+            opacity: 0.03;
+        }
+
+        /* منطقة آمنة للموبايل */
+        .safe-bottom {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- حاوية التطبيق -->
+    <div id="app-container" class="h-screen w-full relative overflow-hidden">
+        
+        <!-- عنصر Recaptcha المخفي -->
+        <div id="recaptcha-container"></div>
+
+        <!-- ================= شاشات المصادقة (Auth Screens) ================= -->
+        <div id="auth-view" class="absolute inset-0 z-50 flex items-center justify-center p-4 bg-slate-950">
+            <!-- خلفية متحركة -->
+            <div class="absolute -top-24 -right-24 w-64 h-64 bg-yellow-500/10 rounded-full blur-3xl animate-pulse pointer-events-none"></div>
+            <div class="absolute -bottom-24 -left-24 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl animate-pulse delay-1000 pointer-events-none"></div>
+
+            <div class="w-full max-w-md glass rounded-3xl p-8 shadow-2xl relative overflow-hidden animate-fade-in">
+                
+                <!-- اللوجو -->
+                <div class="text-center mb-10">
+                    <div class="w-20 h-20 bg-gradient-to-tr from-yellow-400 to-amber-600 rounded-2xl mx-auto mb-4 flex items-center justify-center shadow-lg shadow-amber-500/20 rotate-3 hover:rotate-6 transition-transform duration-500">
+                        <i data-lucide="zap" class="text-white w-10 h-10 fill-current"></i>
+                    </div>
+                    <h1 class="text-4xl font-black text-white mb-2 tracking-tight">VOLT</h1>
+                    <p class="text-slate-400 text-sm">تواصل بسرعة البرق</p>
+                </div>
+
+                <!-- رسائل الخطأ -->
+                <div id="error-msg" class="hidden bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-xl text-sm mb-6 text-center"></div>
+
+                <!-- 1. شاشة الهاتف -->
+                <form id="phone-form" class="space-y-6">
+                    <div class="space-y-2">
+                        <label class="text-xs text-slate-400 font-medium mr-1">رقم الموبايل</label>
+                        <div class="flex bg-slate-800 rounded-xl border border-slate-700 overflow-hidden focus-within:border-yellow-500/50 transition-colors">
+                            <div class="bg-slate-700/50 px-4 flex items-center justify-center border-l border-slate-700 text-slate-300 dir-ltr">
+                                <span class="text-lg font-mono" style="direction: ltr;">+20</span>
+                            </div>
+                            <input type="tel" id="phone-input" class="bg-transparent flex-1 p-4 text-white text-lg outline-none font-mono placeholder-slate-600 text-left" placeholder="1001234567" autofocus>
+                        </div>
+                    </div>
+                    <button type="submit" id="send-otp-btn" class="w-full bg-gradient-to-r from-yellow-500 to-amber-600 text-black py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-amber-500/20 transition-all active:scale-95 flex justify-center items-center gap-2">
+                        <span>إرسال الرمز</span>
+                        <i data-lucide="arrow-left" class="w-5 h-5"></i>
+                    </button>
+                </form>
+
+                <!-- 2. شاشة OTP -->
+                <form id="otp-form" class="hidden space-y-6 animate-fade-in">
+                    <div class="text-center mb-2">
+                        <p class="text-slate-400 text-sm">أدخل الرمز المرسل</p>
+                    </div>
+                    <input type="text" id="otp-input" maxlength="6" class="w-full bg-slate-800 text-center text-3xl tracking-[0.5em] py-4 rounded-xl border border-slate-700 text-yellow-400 outline-none focus:border-yellow-500 transition-all font-mono" placeholder="------">
+                    
+                    <button type="submit" id="verify-otp-btn" class="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg transition-all active:scale-95">
+                        تأكيد الدخول
+                    </button>
+                    <button type="button" id="back-to-phone" class="w-full text-slate-500 text-sm hover:text-white transition py-2">تغيير الرقم؟</button>
+                </form>
+
+                <!-- 3. شاشة الملف الشخصي -->
+                <form id="profile-form" class="hidden space-y-6 animate-fade-in">
+                    <div class="flex justify-center mb-4">
+                        <div class="w-24 h-24 bg-slate-800 rounded-full flex items-center justify-center border-2 border-dashed border-slate-700 relative group cursor-pointer">
+                            <i data-lucide="user" class="text-slate-500 w-10 h-10"></i>
+                            <div class="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 rounded-full group-hover:opacity-100 transition">
+                                <i data-lucide="camera" class="text-white w-6 h-6"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-xs text-slate-400 font-medium mr-1">اسمك الظاهر</label>
+                        <input type="text" id="display-name-input" class="w-full bg-slate-800 px-4 py-4 rounded-xl border border-slate-700 text-white outline-none focus:border-yellow-500 transition-all text-center text-lg placeholder-slate-600" placeholder="الاسم هنا">
+                    </div>
+                    <button type="submit" id="complete-profile-btn" class="w-full bg-white text-black py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-slate-200 transition-all active:scale-95">
+                        ابدأ الدردشة
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- ================= واجهة التطبيق الرئيسية (Main App) ================= -->
+        <div id="main-view" class="hidden flex h-full relative">
+            
+            <!-- القائمة الجانبية (Sidebar) -->
+            <div id="sidebar" class="w-full md:w-[400px] flex flex-col border-l border-slate-800 bg-slate-950 z-20 relative shadow-2xl transition-transform duration-300">
+                
+                <!-- الهيدر -->
+                <div class="p-4 glass flex justify-between items-center sticky top-0 z-10 border-b border-slate-900">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="zap" class="text-yellow-500 w-6 h-6 fill-current"></i>
+                        <h2 class="text-2xl font-black text-white tracking-tight">VOLT</h2>
+                    </div>
+                    <button id="logout-btn" class="hover:bg-slate-800 p-2 rounded-full transition text-red-400" title="تسجيل الخروج">
+                        <i data-lucide="log-out" class="w-5 h-5"></i>
+                    </button>
+                </div>
+
+                <!-- قائمة المستخدمين -->
+                <div class="flex-1 overflow-y-auto custom-scrollbar p-2" id="users-list">
+                    <!-- سيتم ملء القائمة هنا بواسطة JS -->
+                    <div class="flex flex-col items-center justify-center h-64 text-slate-500 opacity-60">
+                        <i data-lucide="loader-2" class="w-8 h-8 animate-spin mb-2"></i>
+                        <p>جاري تحميل المحادثات...</p>
+                    </div>
+                </div>
+
+                <!-- شريط التنقل السفلي (للموبايل فقط) -->
+                <div class="md:hidden bg-slate-900 border-t border-slate-800 flex justify-around py-4 px-2 safe-bottom z-30">
+                    <button class="flex flex-col items-center gap-1 text-yellow-400 scale-110">
+                        <i data-lucide="message-square" class="w-6 h-6 fill-current"></i>
+                    </button>
+                    <button class="flex flex-col items-center gap-1 text-slate-600">
+                         <i data-lucide="settings" class="w-6 h-6"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- منطقة الدردشة (Chat Area) -->
+            <div id="chat-area" class="hidden md:flex flex-1 flex-col bg-black relative z-30 w-full h-full fixed inset-0 md:static">
+                
+                <!-- خلفيات -->
+                <div class="absolute inset-0 bg-slate-900 opacity-90"></div>
+                <div class="absolute inset-0 chat-bg pointer-events-none"></div>
+
+                <!-- هيدر المحادثة -->
+                <div class="px-4 py-3 glass border-b border-slate-800 flex items-center gap-3 shadow-lg z-20 relative">
+                    <button id="back-btn" class="md:hidden p-2 -mr-2 text-slate-300 active:text-white">
+                        <i data-lucide="arrow-right" class="w-6 h-6"></i>
+                    </button>
+                    
+                    <div class="relative">
+                        <img id="chat-header-avatar" src="" class="w-10 h-10 rounded-full bg-slate-800 object-cover">
+                        <span id="chat-header-status" class="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-slate-900 bg-emerald-500"></span>
+                    </div>
+                    
+                    <div class="flex-1">
+                        <h3 id="chat-header-name" class="font-bold text-white text-base">User Name</h3>
+                        <p id="chat-header-sub" class="text-xs text-yellow-500/80 font-medium">متصل</p>
+                    </div>
+
+                    <div class="flex gap-3 text-slate-400">
+                        <i data-lucide="phone" class="w-5 h-5 cursor-pointer hover:text-white"></i>
+                        <i data-lucide="video" class="w-5 h-5 cursor-pointer hover:text-white"></i>
+                    </div>
+                </div>
+
+                <!-- الرسائل -->
+                <div id="messages-container" class="flex-1 overflow-y-auto p-4 space-y-3 z-10 relative custom-scrollbar pb-20">
+                    <!-- الرسائل ستظهر هنا -->
+                </div>
+
+                <!-- صندوق الإرسال -->
+                <form id="message-form" class="p-3 bg-slate-900 border-t border-slate-800 z-20 safe-bottom relative flex items-center gap-2">
+                    <button type="button" class="text-slate-400 p-3 hover:text-yellow-400 transition">
+                        <i data-lucide="smile" class="w-6 h-6"></i>
+                    </button>
+                    <input type="text" id="message-input" class="flex-1 bg-slate-800/50 text-white px-4 py-3 rounded-full outline-none placeholder-slate-600 border border-transparent focus:border-yellow-500/30 transition-all" placeholder="اكتب رسالة..." autocomplete="off">
+                    <button type="submit" id="send-btn" class="bg-yellow-500 hover:bg-yellow-400 text-black p-3 rounded-full transition-all shadow-lg shadow-yellow-500/20 transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <i data-lucide="send" class="w-5 h-5 ml-0.5"></i>
+                    </button>
+                </form>
+            </div>
+
+            <!-- حالة عدم وجود محادثة (للديسك توب) -->
+            <div id="empty-state" class="hidden md:flex flex-1 flex-col items-center justify-center h-full text-center p-10 select-none relative z-10">
+                <div class="absolute inset-0 bg-slate-950 z-0"></div>
+                <div class="relative z-10 flex flex-col items-center">
+                     <div class="relative mb-8">
+                        <div class="absolute inset-0 bg-yellow-500/20 blur-3xl rounded-full animate-pulse"></div>
+                        <i data-lucide="zap" class="w-32 h-32 text-yellow-500 relative z-10 fill-current drop-shadow-2xl"></i>
+                    </div>
+                    <h2 class="text-5xl font-black text-white mb-4 tracking-tight">VOLT WEB</h2>
+                    <p class="text-slate-500 max-w-md text-lg">أرسل واستقبل الرسائل بسرعة البرق.<br>آمن، مشفر، وسريع جداً.</p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ================= JavaScript Logic ================= -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { 
+            getAuth, 
+            signInWithPhoneNumber, 
+            RecaptchaVerifier, 
+            onAuthStateChanged, 
+            updateProfile, 
+            signOut,
+            signInAnonymously 
+        } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { 
+            getFirestore, 
+            collection, 
+            addDoc, 
+            onSnapshot, 
+            query, 
+            orderBy, 
+            serverTimestamp, 
+            doc, 
+            setDoc 
+        } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        // 1. تكوين Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyAzfTj86B1VMcZMJrKQQoUTJarVK7KxWq0",
+            authDomain: "chat-639d0.firebaseapp.com",
+            projectId: "chat-639d0",
+            storageBucket: "chat-639d0.firebasestorage.app",
+            messagingSenderId: "14734870848",
+            appId: "1:14734870848:web:b76044f2f18cfeb89fd2a5",
+            measurementId: "G-9BMHQ2G6VZ"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        auth.languageCode = 'ar';
+
+        // 2. المتغيرات العامة (State)
+        let currentUser = null;
+        let currentChatUser = null;
+        let isSimulated = false;
+        let confirmationResult = null;
+
+        // 3. عناصر DOM
+        const views = {
+            auth: document.getElementById('auth-view'),
+            main: document.getElementById('main-view')
+        };
+        const authForms = {
+            phone: document.getElementById('phone-form'),
+            otp: document.getElementById('otp-form'),
+            profile: document.getElementById('profile-form')
+        };
+        const chatUI = {
+            sidebar: document.getElementById('sidebar'),
+            chatArea: document.getElementById('chat-area'),
+            emptyState: document.getElementById('empty-state'),
+            usersList: document.getElementById('users-list'),
+            messagesContainer: document.getElementById('messages-container'),
+            headerName: document.getElementById('chat-header-name'),
+            headerAvatar: document.getElementById('chat-header-avatar'),
+            msgInput: document.getElementById('message-input'),
+            msgForm: document.getElementById('message-form'),
+            errorMsg: document.getElementById('error-msg')
+        };
+
+        // 4. تهيئة التطبيق
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            initRecaptcha();
+            checkAuth();
+        });
+
+        // 5. وظائف المصادقة (Auth)
+        function initRecaptcha() {
+            if (!window.recaptchaVerifier) {
+                try {
+                    window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+                        'size': 'invisible',
+                        'callback': (response) => console.log("Recaptcha solved"),
+                        'expired-callback': () => showError('انتهت صلاحية التحقق')
+                    });
+                } catch (e) {
+                    console.warn("Recaptcha init failed (Preview Mode?):", e);
+                }
+            }
+        }
+
+        function checkAuth() {
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    if (user.displayName) {
+                        currentUser = user;
+                        showMainApp();
+                        updateUserStatus('online');
+                    } else {
+                        showAuthStep('profile');
+                    }
+                } else {
+                    currentUser = null;
+                    showAuthStep('phone');
+                }
+            });
+        }
+
+        // معالجة نموذج الهاتف
+        authForms.phone.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            showError('');
+            const phoneInput = document.getElementById('phone-input').value;
+            if (phoneInput.length < 8) return showError('رقم الهاتف قصير جداً');
+
+            // تنسيق الرقم
+            let formatted = phoneInput.replace(/\D/g, '');
+            if (formatted.startsWith('0')) formatted = formatted.substring(1);
+            if (!formatted.startsWith('20')) formatted = '+20' + formatted;
+            else formatted = '+' + formatted;
+
+            const btn = document.getElementById('send-otp-btn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i data-lucide="loader-2" class="animate-spin"></i>';
+            lucide.createIcons();
+            btn.disabled = true;
+
+            try {
+                isSimulated = false;
+                if (!window.recaptchaVerifier) throw new Error("Recaptcha Error");
+                
+                confirmationResult = await signInWithPhoneNumber(auth, formatted, window.recaptchaVerifier);
+                showAuthStep('otp');
+            } catch (error) {
+                console.error("SMS Failed, Switching to Simulation", error);
+                isSimulated = true;
+                setTimeout(() => {
+                    showAuthStep('otp');
+                    showError('وضع التجربة: استخدم الكود 123456');
+                }, 1500);
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                lucide.createIcons();
+            }
+        });
+
+        // معالجة نموذج OTP
+        authForms.otp.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const otp = document.getElementById('otp-input').value;
+            const btn = document.getElementById('verify-otp-btn');
+            btn.disabled = true;
+            btn.innerText = 'جاري التحقق...';
+
+            try {
+                if (isSimulated) {
+                    if (otp === '123456') {
+                        await signInAnonymously(auth);
+                    } else {
+                        throw new Error("Invalid Code");
+                    }
+                } else {
+                    await confirmationResult.confirm(otp);
+                }
+                // onAuthStateChanged will handle redirection
+            } catch (error) {
+                showError('الكود غير صحيح');
+                btn.disabled = false;
+                btn.innerText = 'تأكيد الدخول';
+            }
+        });
+
+        // معالجة نموذج الملف الشخصي
+        authForms.profile.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('display-name-input').value;
+            if (!name.trim()) return;
+
+            const btn = document.getElementById('complete-profile-btn');
+            btn.disabled = true;
+            btn.innerText = 'جاري التهيئة...';
+
+            try {
+                if (auth.currentUser) {
+                    await updateProfile(auth.currentUser, { displayName: name });
+                    currentUser = auth.currentUser; // Update local ref
+                    await updateUserStatus('online');
+                    showMainApp();
+                }
+            } catch (error) {
+                console.error(error);
+                btn.disabled = false;
+            }
+        });
+
+        document.getElementById('back-to-phone').addEventListener('click', () => showAuthStep('phone'));
+        document.getElementById('logout-btn').addEventListener('click', async () => {
+             if(currentUser) await updateUserStatus('offline');
+             await signOut(auth);
+             window.location.reload();
+        });
+
+        // 6. واجهة المستخدم (UI Management)
+        function showAuthStep(step) {
+            views.main.classList.add('hidden');
+            views.auth.classList.remove('hidden');
+            
+            // إخفاء كل النماذج
+            Object.values(authForms).forEach(el => el.classList.add('hidden'));
+            
+            // إظهار النموذج المطلوب
+            authForms[step].classList.remove('hidden');
+        }
+
+        function showMainApp() {
+            views.auth.classList.add('hidden');
+            views.main.classList.remove('hidden');
+            loadUsers();
+        }
+
+        function showError(msg) {
+            const el = document.getElementById('error-msg');
+            if (msg) {
+                el.innerText = msg;
+                el.classList.remove('hidden');
+            } else {
+                el.classList.add('hidden');
+            }
+        }
+
+        // 7. Firestore Logic (Users & Chat)
+        async function updateUserStatus(status) {
+            if (!currentUser) return;
+            const userRef = doc(db, 'users', currentUser.uid);
+            await setDoc(userRef, {
+                uid: currentUser.uid,
+                displayName: currentUser.displayName,
+                phoneNumber: currentUser.phoneNumber || 'Anonymous',
+                status: status,
+                lastSeen: serverTimestamp(),
+                avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.uid}`
+            }, { merge: true });
+        }
+
+        function loadUsers() {
+            const q = query(collection(db, 'users'));
+            onSnapshot(q, (snapshot) => {
+                chatUI.usersList.innerHTML = '';
+                const users = [];
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    if (data.uid !== currentUser.uid) users.push(data);
+                });
+
+                if (users.length === 0) {
+                    chatUI.usersList.innerHTML = `
+                        <div class="flex flex-col items-center justify-center h-64 text-slate-500 opacity-60">
+                            <p>لا يوجد مستخدمين آخرين حالياً</p>
+                        </div>`;
+                    return;
+                }
+
+                users.forEach(user => {
+                    const el = document.createElement('div');
+                    el.className = `flex items-center gap-4 p-3 rounded-xl cursor-pointer transition duration-200 hover:bg-slate-900 active:bg-slate-800 group border-b border-slate-900/50 last:border-0`;
+                    el.innerHTML = `
+                        <div class="relative">
+                            <img src="${user.avatar}" class="w-14 h-14 rounded-full bg-slate-800 object-cover border-2 border-transparent group-hover:border-slate-700 transition">
+                            ${user.status === 'online' ? '<span class="absolute bottom-0 right-0 w-4 h-4 bg-emerald-500 border-4 border-slate-950 rounded-full"></span>' : ''}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex justify-between items-baseline mb-1">
+                                <h3 class="font-bold text-white text-lg">${user.displayName}</h3>
+                            </div>
+                            <p class="text-sm text-slate-400 truncate group-hover:text-slate-300 transition">اضغط للدردشة</p>
+                        </div>
+                    `;
+                    el.onclick = () => openChat(user);
+                    chatUI.usersList.appendChild(el);
+                });
+            });
+        }
+
+        function openChat(user) {
+            currentChatUser = user;
+            
+            // UI Updates
+            chatUI.emptyState.classList.add('hidden'); // إخفاء الشعار
+            chatUI.emptyState.classList.remove('md:flex'); // تأكيد الإخفاء في الديسك توب
+
+            chatUI.chatArea.classList.remove('hidden'); // إظهار الشات
+            
+            // في الموبايل: إخفاء السايدبار
+            if (window.innerWidth < 768) {
+                chatUI.sidebar.classList.add('hidden');
+            }
+
+            // تحديث الهيدر
+            chatUI.headerName.innerText = user.displayName;
+            chatUI.headerAvatar.src = user.avatar;
+            
+            // تحميل الرسائل
+            loadMessages();
+        }
+
+        document.getElementById('back-btn').addEventListener('click', () => {
+            chatUI.chatArea.classList.add('hidden');
+            chatUI.sidebar.classList.remove('hidden');
+            currentChatUser = null;
+        });
+
+        let unsubscribeMessages = null;
+
+        function loadMessages() {
+            if (unsubscribeMessages) unsubscribeMessages();
+            chatUI.messagesContainer.innerHTML = '';
+
+            const chatId = [currentUser.uid, currentChatUser.uid].sort().join('_');
+            const q = query(collection(db, 'messages'), orderBy('createdAt', 'asc'));
+
+            unsubscribeMessages = onSnapshot(q, (snapshot) => {
+                chatUI.messagesContainer.innerHTML = ''; // إعادة رسم بسيطة (للمحاكاة)
+                
+                // الفلترة في الذاكرة لتجنب مشاكل الـ Index في المعاينة
+                const msgs = [];
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    if (data.chatId === chatId) msgs.push(data);
+                });
+
+                msgs.forEach(msg => {
+                    const isMe = msg.senderId === currentUser.uid;
+                    const div = document.createElement('div');
+                    div.className = `flex ${isMe ? 'justify-end' : 'justify-start'} animate-fade-in`;
+                    
+                    const time = msg.createdAt ? new Date(msg.createdAt.seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '..';
+
+                    div.innerHTML = `
+                        <div class="max-w-[75%] px-4 py-2 rounded-2xl shadow-sm text-base relative leading-relaxed ${isMe ? 'bg-gradient-to-br from-yellow-600 to-amber-700 text-white rounded-tr-sm' : 'bg-slate-800 text-slate-100 rounded-tl-sm border border-slate-700'}">
+                            <p>${msg.text}</p>
+                            <div class="text-[10px] mt-1 flex items-center justify-end gap-1 opacity-60">
+                                <span>${time}</span>
+                                ${isMe ? '<i data-lucide="check-check" class="w-3 h-3 text-yellow-200"></i>' : ''}
+                            </div>
+                        </div>
+                    `;
+                    chatUI.messagesContainer.appendChild(div);
+                });
+                
+                lucide.createIcons();
+                chatUI.messagesContainer.scrollTop = chatUI.messagesContainer.scrollHeight;
+            });
+        }
+
+        // إرسال رسالة
+        chatUI.msgForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const text = chatUI.msgInput.value.trim();
+            if (!text || !currentChatUser) return;
+
+            chatUI.msgInput.value = '';
+            const chatId = [currentUser.uid, currentChatUser.uid].sort().join('_');
+
+            try {
+                await addDoc(collection(db, 'messages'), {
+                    text: text,
+                    senderId: currentUser.uid,
+                    senderName: currentUser.displayName,
+                    chatId: chatId,
+                    createdAt: serverTimestamp(),
+                    read: false
+                });
+            } catch (error) {
+                console.error("Error sending", error);
+            }
+        });
+
+    </script>
+</body>
+</html>
