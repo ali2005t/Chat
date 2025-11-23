@@ -257,8 +257,7 @@
             RecaptchaVerifier, 
             onAuthStateChanged, 
             updateProfile, 
-            signOut,
-            signInAnonymously 
+            signOut
         } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
         import { 
             getFirestore, 
@@ -291,7 +290,6 @@
         // 2. المتغيرات العامة (State)
         let currentUser = null;
         let currentChatUser = null;
-        let isSimulated = false;
         let confirmationResult = null;
 
         // 3. عناصر DOM
@@ -334,7 +332,8 @@
                         'expired-callback': () => showError('انتهت صلاحية التحقق')
                     });
                 } catch (e) {
-                    console.warn("Recaptcha init failed (Preview Mode?):", e);
+                    console.warn("Recaptcha init failed:", e);
+                    showError("فشل في تحميل نظام التحقق");
                 }
             }
         }
@@ -376,18 +375,31 @@
             btn.disabled = true;
 
             try {
-                isSimulated = false;
-                if (!window.recaptchaVerifier) throw new Error("Recaptcha Error");
-                
+                // التأكد من وجود Recaptcha
+                if (!window.recaptchaVerifier) {
+                     window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+                        'size': 'invisible',
+                        'callback': (response) => console.log("Recaptcha solved")
+                    });
+                }
+
                 confirmationResult = await signInWithPhoneNumber(auth, formatted, window.recaptchaVerifier);
                 showAuthStep('otp');
             } catch (error) {
-                console.error("SMS Failed, Switching to Simulation", error);
-                isSimulated = true;
-                setTimeout(() => {
-                    showAuthStep('otp');
-                    showError('وضع التجربة: استخدم الكود 123456');
-                }, 1500);
+                console.error("SMS Failed", error);
+                
+                let msg = "فشل الإرسال: " + error.message;
+                if (error.code === 'auth/invalid-phone-number') msg = "رقم الهاتف غير صحيح";
+                if (error.code === 'auth/quota-exceeded') msg = "تم تجاوز حد الرسائل المسموح به";
+                if (error.code === 'auth/captcha-check-failed') msg = "فشل التحقق الأمني (Recaptcha)";
+                
+                // رسالة خاصة لمشكلة الدومين في البيئة الحالية
+                if (error.message && error.message.includes('authorized domain')) {
+                    msg = "عذراً، يجب إضافة دومين الموقع إلى Authorized Domains في إعدادات فايربيس للسماح بالإرسال الحقيقي.";
+                }
+
+                showError(msg);
+                // تم إزالة السطر الذي يحول للمحاكاة
             } finally {
                 btn.innerHTML = originalText;
                 btn.disabled = false;
@@ -404,20 +416,14 @@
             btn.innerText = 'جاري التحقق...';
 
             try {
-                if (isSimulated) {
-                    if (otp === '123456') {
-                        await signInAnonymously(auth);
-                    } else {
-                        throw new Error("Invalid Code");
-                    }
-                } else {
-                    await confirmationResult.confirm(otp);
-                }
+                if (!confirmationResult) throw new Error("No confirmation result");
+                await confirmationResult.confirm(otp);
                 // onAuthStateChanged will handle redirection
             } catch (error) {
-                showError('الكود غير صحيح');
+                showError('الكود غير صحيح أو انتهت صلاحيته');
                 btn.disabled = false;
                 btn.innerText = 'تأكيد الدخول';
+                console.error(error);
             }
         });
 
@@ -628,4 +634,4 @@
 
     </script>
 </body>
-</html>
+                        </html>
